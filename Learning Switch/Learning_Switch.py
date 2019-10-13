@@ -1,11 +1,3 @@
-#cky: learning github
-
-#cky: merge test 2
-
-#suj test
-
-#this better work
-
 '''
 Ethernet learning switch in Python.
 Note that this file currently has the code to implement a "hub"
