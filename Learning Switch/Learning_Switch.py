@@ -100,16 +100,14 @@ class SwitchTable:
                 return row[1]
 
         return ""
-
+    '''
+    For use in testing
+    '''
     def writeTable(self):
         for row in self.learningTable:
             print(row[0] + " " + row[1])
         return
 
-def test():
-    learning_table = SwitchTable(5)
-    learning_table.addRow("893","B")
-    learning_table.writeTable()
 
 
 
