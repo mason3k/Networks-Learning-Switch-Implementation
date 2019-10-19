@@ -67,22 +67,25 @@ class SwitchTable:
     '''
     def __init__(self,limit):
         self.limit = limit
+        self.curRow = 0
+        self.learningTable = []
+
     '''
     add a row to learning switch table
     '''
-    def addRow(address,port):
-        if SwitchTable.curRow > 4:
-            SwitchTable.curRow = 0
+    def addRow(self,address,port):
+        if self.curRow > 4:
+            self.curRow = 0
 
-        SwitchTable.learningTable[curRow] = [address , port]
-        SwitchTable.curRow += 1
+        self.learningTable[curRow] = [address , port]
+        self.curRow += 1
         return
 
     '''
     Helper function to check if the address is already in the table
     '''
-    def isAddressAlreadyMapped(address):
-        for row in SwitchTable.learningTable:
+    def isAddressAlreadyMapped(self,address):
+        for row in self.learningTable:
             if row[0] == address:
                 return True
 
@@ -91,12 +94,24 @@ class SwitchTable:
     '''
     Return the port we have mapped for the address
     '''
-    def getMappedPort(address):
-        for row in SwitchTable.learningTable:
+    def getMappedPort(self,address):
+        for row in self.learningTable:
             if row[0] == address:
                 return row[1]
 
         return ""
+
+    def writeTable(self):
+        for row in self.learningTable:
+            print(row[0] + " " + row[1])
+        return
+
+def test():
+    learning_table = SwitchTable(5)
+    learning_table.addRow("893","B")
+    learning_table.writeTable()
+
+
 
 
         
