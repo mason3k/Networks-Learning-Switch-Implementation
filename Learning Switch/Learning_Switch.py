@@ -2,7 +2,7 @@
 #but it is hard
 
 #yes syd finally.... please...
-]#test test vs is working?
+#test test vs is working?
 '''
 Ethernet learning switch in Python.
 Note that this file currently has the code to implement a "hub"
@@ -13,6 +13,46 @@ from switchyard.lib.userlib import *
 
 '''
 main Entrypoint
+
+Variables:
+net: switchyard network object
+    methods:
+        interfaces() or ports() - 
+            return value: list of Interface objects that are configured on the network device
+        recv_packet(timeout = none) - receive at most one packet from any port.  block until a packet is received or timeout (optionally passed in) has passed
+            retrun value: namedtuple of lenght 3 - timestamp for when the packet was received, name of the input port on which the packet was received, packet itself
+                recvdata = net.recv_packet()
+                recvdata.timestamp, recvdata.packet, recvdata.input_port or recvdata[0], recvdata[1], recvdata[2]
+        send_packet(output_port, packet) - send a packet to output_port
+            output_port: string name of the port or Interface object
+            return value: none
+
+    Interface object:
+        name: name of the interface (string)
+        ethaddr: Ethernet address for the interface
+        ipaddr: IPv4 address for the interface.  return value is IPv4Address object.  If no address, address is 0.0.0.0.
+        netmask: network mas associated with the IPv4 address for the interface.  Default is 255.255.255.255 (/32)
+        ifnum: integer index associated with the interface
+        iftype: type of the interface.  Either Unknown, Loopback, Wired, or Wireless (enum in switchyard.lib.interface.InterfaceType)
+        All the above except ifnum and iftype can be modified.
+
+        for  more info: https://jsommers.github.io/switchyard/writing_a_program.html
+
+Packet object:
+    container of headers (header object)
+    packet[0] or pakcet[Ethernet], where Ethernet is the packet header class name: lowest layer header - most likely Ethernet header
+        packet[1] = IPv4
+        packet[2] = ICMP
+    packet[0].src: packet Ethernet header source address
+    packet[0].dst: packet Ethernet header destination address
+    packet[0].ethertype: packet Ethernet header type
+
+
+my_interfaces: list of ports (or interfaces)
+mymacs: list of interface Ethernet headers
+timestamp: timestamp of when the packet was received in the input port
+input_port: port name where the packet was received
+packet: packet object received
 '''
 def main(net):
     my_interfaces = net.interfaces() 
@@ -56,6 +96,13 @@ def main(net):
 
 '''
 A class defining the learning table
+
+SwitchTable format:
+curRow: pointer to the row we are current pointing at in learningTable
+limit: max number of rows we can have in learningTable
+learningTable: double list of [address, port] combinations
+    ex) learningTable = [ [addr1, port1], [addr2, port2], [addr3, port3], [addr4, port4], [addr5, port5] ]
+        if curRow is 3, we are pointing at [addr4, port4] in learningTable
 '''
 class SwitchTable:
     curRow = 0
@@ -69,9 +116,7 @@ class SwitchTable:
     def __init__(self,limit):
         self.limit = limit
         self.curRow = 0
-        self.learningTable=[]
-        for i in range(limit):
-            self.learningTable.append(["",""])
+        self.learningTable=[[None, None]] * 5
 
     '''
     add a row to learning switch table
