@@ -40,7 +40,7 @@ def main(net):
         
         #TODO if it is not the "all interfaces message" and we know where we should be going based 
         #on the table (i.e., destination in table), send it straight there
-        elif destination_address.upper() != "FF:FF:FF:FF:FF:FF" and learning_table.isAddressAlreadyMapped(destination_address):
+        elif destination_address != "FF:FF:FF:FF:FF:FF" and learning_table.isAddressAlreadyMapped(destination_address):
             destination_port = learning_table.getMappedPort(destination_address)
             log_debug("Mapped destination found: {}".format(destination_port))
             net.send_packet(destination_port, packet)
@@ -70,7 +70,7 @@ class SwitchTable:
         self.curRow = 0
         self.learningTable=[]
         for i in range(limit):
-            self.learningTable.append(["",""])
+            self.learningTable.append(["00:00:00:00:00:00",""])
 
     '''
     add a row to learning switch table
