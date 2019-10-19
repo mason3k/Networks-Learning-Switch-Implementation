@@ -68,7 +68,9 @@ class SwitchTable:
     def __init__(self,limit):
         self.limit = limit
         self.curRow = 0
-        self.learningTable = []
+        self.learningTable=[]
+        for i in range(limit):
+            self.learningTable.append(["",""])
 
     '''
     add a row to learning switch table
@@ -76,8 +78,8 @@ class SwitchTable:
     def addRow(self,address,port):
         if self.curRow > 4:
             self.curRow = 0
-
-        self.learningTable[curRow] = [address , port]
+        
+        self.learningTable[self.curRow] = [address , port]
         self.curRow += 1
         return
 
@@ -107,7 +109,6 @@ class SwitchTable:
         for row in self.learningTable:
             print(row[0] + " " + row[1])
         return
-
 
 
 
