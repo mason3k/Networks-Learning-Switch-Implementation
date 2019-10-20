@@ -1,9 +1,10 @@
-mport struct
+import struct
 from switchyard.lib.userlib import *
 
 
 '''
 main Entrypoint
+
 Variables:
 net: switchyard network object
     methods:
@@ -16,6 +17,7 @@ net: switchyard network object
         send_packet(output_port, packet) - send a packet to output_port
             output_port: string name of the port or Interface object
             return value: none
+
     Interface object:
         name: name of the interface (string)
         ethaddr: Ethernet address for the interface
@@ -24,7 +26,9 @@ net: switchyard network object
         ifnum: integer index associated with the interface
         iftype: type of the interface.  Either Unknown, Loopback, Wired, or Wireless (enum in switchyard.lib.interface.InterfaceType)
         All the above except ifnum and iftype can be modified.
+
         for  more info: https://jsommers.github.io/switchyard/writing_a_program.html
+
 Packet object:
     container of headers (header object)
     packet[0] or pakcet[Ethernet], where Ethernet is the packet header class name: lowest layer header - most likely Ethernet header
@@ -33,6 +37,8 @@ Packet object:
     packet[0].src: packet Ethernet header source address
     packet[0].dst: packet Ethernet header destination address
     packet[0].ethertype: packet Ethernet header type
+
+
 my_interfaces: list of ports (or interfaces)
 mymacs: list of interface Ethernet headers
 timestamp: timestamp of when the packet was received in the input port
@@ -81,6 +87,7 @@ def main(net):
 
 '''
 A class defining the learning table
+
 SwitchTable format:
 curRow: pointer to the row we are current pointing at in learningTable
 limit: max number of rows we can have in learningTable
