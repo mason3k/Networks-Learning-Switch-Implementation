@@ -104,13 +104,12 @@ class SwitchTable:
     initialize a learning switch table where
     limit is the number of entries before we purge
     '''
-    def __init__(self,limit,id):
+    def __init__(self,limit):
         self.limit = limit
         self.curRow = 0
         self.learningTable=[]
         for i in range(limit):
             self.learningTable.append(["00:00:00:00:00:00",None])
-        self.id = id
 
     '''
     add a row to learning switch table
