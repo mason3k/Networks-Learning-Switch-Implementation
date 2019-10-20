@@ -1,8 +1,3 @@
-#hi calvin I think we're getting this !!! 
-#but it is hard
-
-#yes syd finally.... please...
-#test test vs is working?
 '''
 Ethernet learning switch in Python.
 Note that this file currently has the code to implement a "hub"
