@@ -59,7 +59,7 @@ def main(net):
             return
 
         log_debug ("In {} received packet {} on {}".format(net.name, packet, input_port))
-        #TODO: record interface of source address (packet[0].src -> input_port) ? in table
+        #Record interface of source address (packet[0].src -> input_port) in table
         #if it is not already in there
         source_address = packet[0].src 
         destination_address = packet[0].dst
@@ -70,9 +70,9 @@ def main(net):
         if packet[0].dst in mymacs:
             log_debug ("Packet intended for me")
         
-        #TODO if it is not the "all interfaces message" and we know where we should be going based 
+        #If it is not the "all interfaces message" and we know where we should be going based 
         #on the table (i.e., destination in table), send it straight there
-        elif destination_address.upper() != "FF:FF:FF:FF:FF:FF" and learning_table.isAddressAlreadyMapped(destination_address):
+        elif destination_address != "FF:FF:FF:FF:FF:FF" and learning_table.isAddressAlreadyMapped(destination_address):
             destination_port = learning_table.getMappedPort(destination_address)
             log_debug("Mapped destination found: {}".format(destination_port))
             net.send_packet(destination_port, packet)
