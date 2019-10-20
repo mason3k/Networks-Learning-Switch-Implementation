@@ -116,7 +116,9 @@ class SwitchTable:
     def __init__(self,limit):
         self.limit = limit
         self.curRow = 0
-        self.learningTable=[[None, None]] * 5
+        self.learningTable=[]
+        for i in range(limit):
+            self.learningTable.append(["00:00:00:00:00:00",""])
 
     '''
     add a row to learning switch table
