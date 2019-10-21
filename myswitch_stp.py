@@ -18,7 +18,7 @@ net: switchyard network object
             output_port: string name of the port or Interface object
             return value: none
 
-    Interface object:
+    Interface (port) object:
         name: name of the interface (string)
         ethaddr: Ethernet address for the interface
         ipaddr: IPv4 address for the interface.  return value is IPv4Address object.  If no address, address is 0.0.0.0.
@@ -69,6 +69,8 @@ def main(net):
 
         if packet[0].dst in mymacs:
             log_debug ("Packet intended for me")
+            
+        
         
         #TODO if it is not the "all interfaces message" and we know where we should be going based 
         #on the table (i.e., destination in table), send it straight there
@@ -149,6 +151,12 @@ class SwitchTable:
 
 
 
+#this class will have all the methods and variables.  Also udpate main to
+# 1. create a spanning tree packet. look at the test script
+# 2. send this packet periodically (only root node generates this)
+# 3. update (root node, block, and etc...) as necesary
+# id of a switch is the lowest MAC address of all the ports this switch has
+# 
 class SpanningTreeMessage(PacketHeaderBase):
     _PACKFMT = "6sxB6s"
 
@@ -160,6 +168,9 @@ class SpanningTreeMessage(PacketHeaderBase):
         self._hops_to_root = hops_to_root
         self._switch_id = EthAddr(switch_id)
         PacketHeaderBase.__init__(self, **kwargs)
+        
+        
+
 
     def to_bytes(self):
         raw = struct.pack(self._PACKFMT, self._root.raw, self._hops_to_root, self._switch_id.raw)
