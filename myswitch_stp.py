@@ -126,8 +126,10 @@ def main(net):
         #on the table (i.e., destination in table), send it straight there
         if destination_address != None:
             log_debug("destination addr: {}".format(destination_address))
-            str = learning_table.writeTable()
-            log_debug("learning table: {}".format(str))
+            for row in learning_table.learningTable:
+                log_debug("address: {}, port: {}".format(row[0], row[1]))
+            #str = learning_table.writeTable()
+            #log_debug("learning table: {}".format(str))
         elif destination_address != "FF:FF:FF:FF:FF:FF" and learning_table.isAddressAlreadyMapped(destination_address):
             
             destination_port = learning_table.getMappedPort(destination_address)
@@ -138,7 +140,7 @@ def main(net):
             for intf in my_interfaces:
                 #We don't want to send it back where it came from
                 #TODO update to handle blocked ports
-                if input_port != intf.name:
+                if input_port != intf.name and not intf.name in learning_table.blockedInterfaces:
                     #log_debug ("Flooding packet {} to {}".format(packet, intf.name))
                     net.send_packet(intf.name, packet)
 
