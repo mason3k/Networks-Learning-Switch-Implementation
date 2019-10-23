@@ -1,7 +1,8 @@
 import struct
 from switchyard.lib.userlib import *
 import datetime
-
+import threading
+import time
 
 '''
 main Entrypoint
@@ -19,7 +20,7 @@ net: switchyard network object
             output_port: string name of the port or Interface object
             return value: none
 
-    Interface object:
+    Interface (port) object:
         name: name of the interface (string)
         ethaddr: Ethernet address for the interface
         ipaddr: IPv4 address for the interface.  return value is IPv4Address object.  If no address, address is 0.0.0.0.
@@ -50,12 +51,26 @@ def main(net):
     my_interfaces = net.interfaces() 
     mymacs = [intf.ethaddr for intf in my_interfaces]
     #TODO Get lowest address in mymacs (ethAddr objects have a built-in compare opertor so can just use </sort method)
+    #cky: check this?
+    mymacs.sort();
+    switchId = mymacs[0]
+
     #TODO pass in lowest address from above into SwitchTable as second argument
-    learning_table = SwitchTable(5)
+    #cky: check this?
+    learning_table = SwitchTable(5,switchId)
 
     #Flood all interfaces on start-up
     for intf in my_interfaces:
-        net.send_packet(intf.name, learning_table.makeSTPPacket() )
+        net.send_packet(intf.name, learning_table.makeSTPPacket())
+
+    #need this to get the initial time
+    learning_table.timeSpanPackLastRecvd = datetime.datetime.now()
+
+    asyncTimer = threading.Thread(target=learning_table.check_lastSTP, args=(learning_table.timeSpanPackLastRecvd, my_interfaces, net))
+    asyncTimer.start()
+    #cky: if a non root node doesn't receive STP messages for more 10 seconds, reset
+    #not sure how to do this... seems like this needs to be run as in background asynchronously
+    #there is this thing called Thread in python?
 
     while True:
         try:
@@ -65,17 +80,35 @@ def main(net):
         except Shutdown:
             return
 
-        log_debug ("In {} received packet {} on {}".format(net.name, packet, input_port))
+        #log_debug ("In {} received packet {} on {}".format(net.name, packet, input_port))
         if packet.has_header(SpanningTreeMessage):
             spanning_header = packet.get_header(SpanningTreeMessage)
             #TODO Call learningTable.updateFromSTP(spanning_header,input_port) to update switch with packet info
+            #cky: check this
+            shouldFlood = learning_table.updateFromSTP(spanning_header, input_port)
+
+            #increment current packet's hops to root
+            #cky: check this.  
+            spanning_header.hops_to_root = spanning_header.hops_to_root + 1 
+
+            #cky: check this - if we are going to forward it, should we change this packet's source id to be switchId?
+            #packet[0].src = switchId
+
             #TODO forward to everyone except the source (or everyone if we're the root)
+            #cky: check this - do we want to still flood for situation 7-2?
+            if(shouldFlood == 1):
+                for intf in my_interfaces:
+                    if input_port != intf.name:
+                        #when flodding should we reset packet[0].src and dst to eth0 and "ff:ff:ff:ff:ff:ff"?  - FAQ last question
+                        packet[0].src = EthAddr("00:00:00:00:00:00")
+                        packet[0].dst = EthAddr("FF:FF:FF:FF:FF:FF")
+                        spanning_header.switch_id = learning_table.myId
+                        net.send_packet(intf.name, packet)
 
             #Don't want to learn from this, so break out of loop here
             continue
 
-
-        log_debug ("Learning: In {} received packet {} on {}".format(net.name, packet, input_port))
+        #log_debug ("Learning: In {} received packet {} on {}".format(net.name, packet, input_port))
         #Record interface of source address (packet[0].src -> input_port) in table
         #if it is not already in there
         source_address = packet[0].src 
@@ -86,10 +119,17 @@ def main(net):
 
         if packet[0].dst in mymacs:
             log_debug ("Packet intended for me")
+            
+        
         
         #If it is not the "all interfaces message" and we know where we should be going based 
         #on the table (i.e., destination in table), send it straight there
+        if destination_address != None:
+            log_debug("destination addr: {}".format(destination_address))
+            str = learning_table.writeTable()
+            log_debug("learning table: {}".format(str))
         elif destination_address != "FF:FF:FF:FF:FF:FF" and learning_table.isAddressAlreadyMapped(destination_address):
+            
             destination_port = learning_table.getMappedPort(destination_address)
             log_debug("Mapped destination found: {}".format(destination_port))
             net.send_packet(destination_port, packet)
@@ -99,8 +139,10 @@ def main(net):
                 #We don't want to send it back where it came from
                 #TODO update to handle blocked ports
                 if input_port != intf.name:
-                    log_debug ("Flooding packet {} to {}".format(packet, intf.name))
+                    #log_debug ("Flooding packet {} to {}".format(packet, intf.name))
                     net.send_packet(intf.name, packet)
+
+    asyncTimer.join()
     net.shutdown()
 
 
@@ -126,13 +168,14 @@ class SwitchTable:
         self.learningTable=[]
         for i in range(limit):
             self.learningTable.append(["00:00:00:00:00:00",None])
-        self.myId = id
-        self.rootId = id
+        self.myId = myId        #root_interface
+        self.rootId = myId      #root_switch_id
         self.hopsToRoot = 0
         self.timeSpanPackLastRecvd = None
+        self.timeLastFlooded = None
         self.blockedInterfaces = []
         #rootInterface = the interface we're getting current root packets from
-        self.rootInterface = None
+        self.rootInterface = None       #incoming_interface
 
     '''
     add a row to learning switch table
@@ -168,15 +211,18 @@ class SwitchTable:
     For use in testing
     '''
     def writeTable(self):
+        str = ""
         for row in self.learningTable:
-            print(row[0] + " " + row[1])
-        return
+            str = str+ row[0] +" " + row[1] + "/"
+            #print(row[0] + " " + row[1])
+        return str
 
     '''
     Send an STP Packet based on current switch information
     '''
-    def makeSTPPacket(self)
-         spt_header = SpanningTreeMessage(self.rootId,self.hopsToRoot,self.myId)
+    def makeSTPPacket(self):
+        spt_header = SpanningTreeMessage(self.rootId,self.hopsToRoot,self.myId)
+        
         
         Ethernet.add_next_header_class(EtherType.SLOW, SpanningTreeMessage)
         pkt = Ethernet(src="00:00:00:00:00:00", dst="FF:FF:FF:FF:FF:FF",ethertype=EtherType.SLOW) + spt_header
@@ -189,30 +235,105 @@ class SwitchTable:
     Returns True if current switch is root
     Returns False if current switch is not root
     '''
-    def iAmRoot(self)
+    def iAmRoot(self):
         return self.myId == self.rootId
 
     '''
     Call this when we receive an STP packet to update the switch with new information
     '''
-    def updateFromSTP(self,STP_header,input_port)
+    def updateFromSTP(self,STP_header,input_port):
         #Calling this when receiving an update, so set last recieved time to now
-        self.timeSpanPackLastRcvd = datetime.datetime.now()
+        self.timeSpanPackLastRecvd = datetime.datetime.now()
 
-        if (STP_header.root < self.root) or (self.rootInterface != None and (self.rootInterface == input_port)):
+        #received packet root has lower ID and than current root id or
+        #my rootInterface is equal to input_port (port where the packet was received)
+        #cky: change all reference to self.root to self.rootId
+        if (STP_header.root < self.rootId) or (self.rootInterface != None and (self.rootInterface == input_port)):
             #TODO update root info
+            #cky: check this
+            self.rootId = STP_header.root
+            self.hopsToRoot = STP_header.hops_to_root + 1
+            self.rootInterface = input_port
+
+            #remove this input_port from blockedPorts
+            if input_port in self.blockedInterfaces:
+                del self.blockedInterfaces[input_port]            
+
             #TODO send packet per updated info
-
-        if (STP_header.root > self.root):
+            #cky: do this in main since net and packet are not passed in
+            return 1
             #TODO don't know if the above conditional is right
+        if (STP_header.root > self.rootId):
+            #remove this input_port from blockedPorts
+            if input_port in self.blockedInterfaces:
+                del self.blockedInterfaces[input_port]  
             #Delete input_port from self.blockedInterfaces
+            return 0
+        if  (STP_header.root == self.rootId):
+            #not sure about the second condition
+            if (STP_header.hops_to_root + 1 < self.hopsToRoot) or (STP_header.hops_to_root + 1 == self.hopsToRoot and self.rootId > STP_header.switch_id):
+                #packet is better
+                #remove this input_port from blockedPorts
+                if input_port in self.blockedInterfaces:
+                    del self.blockedInterfaces[input_port]
+                    
+                if self.rootInterface not in self.blockedInterfaces:
+                    self.blockedInterfaces.append(self.rootInterface)
 
-        if  (STP_header.root == self.root):
+                self.rootId = STP_header.root
+                self.hopsToRoot = STP_header.hops_to_root + 1
+                self.rootInterface = input_port
+                
+                return 1
+
+            else:
+                #remove this input_port from blockedPorts
+                if input_port in self.blockedInterfaces:
+                    self.blockedInterfaces.append(input_port)
+
             #TODO update hops
             #TODO block input_port if appropriate
-      
+                return 0
 
 
+    '''
+    Check when the last packet was received at non-root and reset this node
+    '''
+    def check_lastSTP(self, prev_time_received, my_interfaces, net):
+        lastTimeSent_root = datetime.datetime.now()
+
+        while self.iAmRoot():
+            timeDiffRoot = datetime.datetime.now() - lastTimeSent_root
+
+            #root
+            log_debug("before 2 second loop")
+            if timeDiffRoot.seconds >= 2 and self.iAmRoot():
+                log_debug("in 2 second loop")
+                for intf in my_interfaces:
+                    net.send_packet(intf.name, self.makeSTPPacket())
+                lastTimeSent_root = datetime.datetime.now()
+
+            log_debug("after 2 second loop")
+
+            time.sleep(.25)
+
+
+        #non-root
+        timeDiff = datetime.datetime.now() - prev_time_received
+        if timeDiff.seconds >= 10 and not self.iAmRoot():
+            self.rootId = self.myId      #root_switch_id
+            self.hopsToRoot = 0
+            for intf in self.blockedInterfaces:
+                del self.blockedInterfaces[intf]
+        return
+
+
+
+#this class will have all the methods and variables.  Also udpate main to
+# 1. create a spanning tree packet. look at the test script
+# 2. send this packet periodically (only root node generates this)
+# 3. update (root node, block, and etc...) as necesary
+# id of a switch is the lowest MAC address of all the ports this switch has
 class SpanningTreeMessage(PacketHeaderBase):
     _PACKFMT = "6sxB6s"
 
@@ -224,6 +345,9 @@ class SpanningTreeMessage(PacketHeaderBase):
         self._hops_to_root = hops_to_root
         self._switch_id = EthAddr(switch_id)
         PacketHeaderBase.__init__(self, **kwargs)
+        
+        
+
 
     def to_bytes(self):
         raw = struct.pack(self._PACKFMT, self._root.raw, self._hops_to_root, self._switch_id.raw)
