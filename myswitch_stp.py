@@ -50,13 +50,10 @@ packet: packet object received
 def main(net):
     my_interfaces = net.interfaces() 
     mymacs = [intf.ethaddr for intf in my_interfaces]
-    #TODO Get lowest address in mymacs (ethAddr objects have a built-in compare opertor so can just use </sort method)
-    #cky: check this?
+    #Get lowest address in mymacs (ethAddr objects have a built-in compare opertor so can just use </sort method)
     mymacs.sort();
     switchId = mymacs[0]
 
-    #TODO pass in lowest address from above into SwitchTable as second argument
-    #cky: check this?
     learning_table = SwitchTable(5,switchId)
 
     #Flood all interfaces on start-up
@@ -69,8 +66,6 @@ def main(net):
     asyncTimer = threading.Thread(target=learning_table.check_lastSTP, args=(learning_table.timeSpanPackLastRecvd, my_interfaces, net))
     asyncTimer.start()
     #cky: if a non root node doesn't receive STP messages for more 10 seconds, reset
-    #not sure how to do this... seems like this needs to be run as in background asynchronously
-    #there is this thing called Thread in python?
 
     while True:
         try:
