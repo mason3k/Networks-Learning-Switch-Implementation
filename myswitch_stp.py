@@ -50,13 +50,10 @@ packet: packet object received
 def main(net):
     my_interfaces = net.interfaces() 
     mymacs = [intf.ethaddr for intf in my_interfaces]
-    #TODO Get lowest address in mymacs (ethAddr objects have a built-in compare opertor so can just use </sort method)
-    #cky: check this?
+    #Get lowest address in mymacs (ethAddr objects have a built-in compare opertor so can just use </sort method)
     mymacs.sort();
     switchId = mymacs[0]
 
-    #TODO pass in lowest address from above into SwitchTable as second argument
-    #cky: check this?
     learning_table = SwitchTable(5,switchId)
 
     #Flood all interfaces on start-up
@@ -69,8 +66,6 @@ def main(net):
     asyncTimer = threading.Thread(target=learning_table.check_lastSTP, args=(learning_table.timeSpanPackLastRecvd, my_interfaces, net))
     asyncTimer.start()
     #cky: if a non root node doesn't receive STP messages for more 10 seconds, reset
-    #not sure how to do this... seems like this needs to be run as in background asynchronously
-    #there is this thing called Thread in python?
 
     while True:
         try:
@@ -83,23 +78,21 @@ def main(net):
         #log_debug ("In {} received packet {} on {}".format(net.name, packet, input_port))
         if packet.has_header(SpanningTreeMessage):
             spanning_header = packet.get_header(SpanningTreeMessage)
-            #TODO Call learningTable.updateFromSTP(spanning_header,input_port) to update switch with packet info
-            #cky: check this
+            
+            #update learning table from STP and determine whether or not to flood
             shouldFlood = learning_table.updateFromSTP(spanning_header, input_port)
 
-            #increment current packet's hops to root
-            #cky: check this.  
+            #increment current packet's hops to root  
             spanning_header.hops_to_root = spanning_header.hops_to_root + 1 
 
             #cky: check this - if we are going to forward it, should we change this packet's source id to be switchId?
             #packet[0].src = switchId
 
-            #TODO forward to everyone except the source (or everyone if we're the root)
-            #cky: check this - do we want to still flood for situation 7-2?
+            #forward STP to everyone except the source (or everyone if we're the root)
             if(shouldFlood == 1):
                 for intf in my_interfaces:
                     if input_port != intf.name:
-                        #when flodding should we reset packet[0].src and dst to eth0 and "ff:ff:ff:ff:ff:ff"?  - FAQ last question
+                        #Per FAQ Last question
                         packet[0].src = EthAddr("00:00:00:00:00:00")
                         packet[0].dst = EthAddr("FF:FF:FF:FF:FF:FF")
                         spanning_header.switch_id = learning_table.myId
@@ -121,15 +114,9 @@ def main(net):
             log_debug ("Packet intended for me")
             
         
-        
         #If it is not the "all interfaces message" and we know where we should be going based 
         #on the table (i.e., destination in table), send it straight there
-        if destination_address != None:
-            log_debug("destination addr: {}".format(destination_address))
-            str = learning_table.writeTable()
-            log_debug("learning table: {}".format(str))
         elif destination_address != "FF:FF:FF:FF:FF:FF" and learning_table.isAddressAlreadyMapped(destination_address):
-            
             destination_port = learning_table.getMappedPort(destination_address)
             log_debug("Mapped destination found: {}".format(destination_port))
             net.send_packet(destination_port, packet)
@@ -137,8 +124,7 @@ def main(net):
         else:
             for intf in my_interfaces:
                 #We don't want to send it back where it came from
-                #TODO update to handle blocked ports
-                if input_port != intf.name:
+                if input_port != intf.name and not intf.name in learning_table.blockedInterfaces:
                     #log_debug ("Flooding packet {} to {}".format(packet, intf.name))
                     net.send_packet(intf.name, packet)
 
@@ -259,15 +245,16 @@ class SwitchTable:
             if input_port in self.blockedInterfaces:
                 del self.blockedInterfaces[input_port]            
 
-            #TODO send packet per updated info
-            #cky: do this in main since net and packet are not passed in
+            #send packet per updated info
+            #Flood
             return 1
-            #TODO don't know if the above conditional is right
+
         if (STP_header.root > self.rootId):
             #remove this input_port from blockedPorts
             if input_port in self.blockedInterfaces:
                 del self.blockedInterfaces[input_port]  
             #Delete input_port from self.blockedInterfaces
+            #Don't Flood
             return 0
         if  (STP_header.root == self.rootId):
             #not sure about the second condition
@@ -283,16 +270,14 @@ class SwitchTable:
                 self.rootId = STP_header.root
                 self.hopsToRoot = STP_header.hops_to_root + 1
                 self.rootInterface = input_port
-                
+                #Flood
                 return 1
 
             else:
                 #remove this input_port from blockedPorts
                 if input_port in self.blockedInterfaces:
                     self.blockedInterfaces.append(input_port)
-
-            #TODO update hops
-            #TODO block input_port if appropriate
+                #Don't flood
                 return 0
 
 
